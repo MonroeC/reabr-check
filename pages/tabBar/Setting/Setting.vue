@@ -84,10 +84,11 @@
 
 <script>
 import request from '@/utils/request';
-import { mapState, mapMutations, mapActions } from 'vuex';
+import { mapState, mapMutations } from 'vuex';
 import { cloneDeep } from 'lodash';
+// #ifdef APP-PLUS
 import * as ClientId from '@/uni_modules/sm-did';
-// var testModule = uni.requireNativePlugin('Univalsoft-DeviceId');
+// #endif
 export default {
   data() {
     return {
@@ -117,14 +118,18 @@ export default {
       /** 根据设备码拿用户信息 */
       infosByPhoneSn: [],
       /** 模拟平台数据 */
-      isMock: false,
+      isMock: true,
     };
   },
   computed: {
     ...mapState(['suerInfo']),
   },
   onLoad() {
-    this.register();
+    // #ifdef APP-PLUS
+    if (uni.getSystemInfoSync()?.platform === 'android') {
+      this.register();
+    }
+    // #endif
   },
   methods: {
     ...mapMutations(['setUserInfo', 'setCusToken']),
@@ -191,13 +196,17 @@ export default {
 
     async getSystemInfo() {
       if (this.isMock) {
-        const uuid = '6f09fd892317210ca50856d84ec7b820';
+        let uuid = '';
+        if (uni.getSystemInfoSync()?.platform === 'android') {
+          uuid = '6f09fd892317210ca50856d84ec7b820';
+        }
+        if (uni.getSystemInfoSync().platform === 'ios') {
+          uuid = 'D71073FB48F84F32B7E68D73BC7936C0';
+        }
         this.systemInfo = {
           model: uuid,
         };
-        uni.setStorageSync('phoneSn', uuid);
       }
-
       // #ifdef APP-PLUS
       if (uni.getSystemInfoSync()?.platform === 'android') {
         // Android 平台代码
@@ -206,24 +215,22 @@ export default {
           this.systemInfo = {
             model: uuid,
           };
-          uni.setStorageSync('phoneSn', uuid);
         }
       }
       if (uni.getSystemInfoSync().platform === 'ios') {
-        // var testModule = uni.requireNativePlugin('Univalsoft-DeviceId');
-        // this.systemInfo = {
-        //   model: '123456789',
-        // };
-        // testModule.getDeviceIDCallback((ret) => {
-        //   uni.showToast({
-        //     title: '调用方法 uuid ' + ret,
-        //     icon: 'none',
-        //   });
-        // });
+        if (!this.isMock) {
+          var testModule = uni.requireNativePlugin('Univalsoft-DeviceId');
+          testModule.getDeviceIDCallback((ret) => {
+            this.systemInfo = {
+              model: ret,
+            };
+          });
+        }
         // iOS 平台代码
         // 注意：iOS 不允许直接获取 IMEI
       }
       // #endif
+      uni.setStorageSync('phoneSn', this.systemInfo?.model);
       uni.showLoading();
       const res = await request.get(
         `/api/common/getInfoByPhoneSn/${this.systemInfo.model}`,
@@ -311,8 +318,6 @@ export default {
     },
   },
   onShow() {
-    // this.readFile('data.txt');
-    // this.writeFile('data.txt', 'your data');
     this.getSystemInfo();
   },
   watch: {
